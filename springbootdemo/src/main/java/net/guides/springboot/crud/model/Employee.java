@@ -23,6 +23,7 @@ public class Employee {
     private String firstName;
     private String lastName;
     private String title;
+    private String temp;
 
     @NotBlank
     @Size(max = 100)
@@ -33,11 +34,12 @@ public class Employee {
 
     }
 
-    public Employee(String firstName, String lastName, String emailId,String title) {
+    public Employee(String firstName, String lastName, String emailId,String title, String temp) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.emailId = emailId;
         this.title = title;
+        this.temp = temp;
     }
 
     public long getId() {
@@ -73,9 +75,14 @@ public class Employee {
     }
     public void setTitle(String title) {this.title = title;}
 
+    public String getTemp() {
+        return temp;
+    }
+    public void setTemp(String temp) {this.temp = temp;}
+
     @Override
     public String toString() {
-        return "Employee [id=" + id + ", firstName=" + firstName + ", lastName=" + lastName + ", emailId=" + emailId + "/user-photos/" + id + "/" + title+
+        return "Employee [id=" + id + ", firstName=" + firstName + ", lastName=" + lastName + ", emailId=" + emailId + "/user-photos/" + id + "/" + title+  ", temp="+ temp +
                 "]";
     }
 }

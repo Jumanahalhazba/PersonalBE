@@ -169,13 +169,52 @@ public class EmployeeController {
 
     @PutMapping("/employees/{id}")
     public ResponseEntity < Employee > updateEmployee(@PathVariable(value = "id") Long employeeId,
-                                                      @Valid @RequestBody Employee employeeDetails) throws ResourceNotFoundException {
+                                                      @Valid @ModelAttribute Employee employeeDetails, @ModelAttribute MultipartFile multipartFile) throws ResourceNotFoundException {
         Employee employee = employeeRepository.findById(employeeId).orElseThrow(() -> new ResourceNotFoundException("Employee not found for this id :: " + employeeId));
 
         employee.setEmailId(employeeDetails.getEmailId());
         employee.setLastName(employeeDetails.getLastName());
         employee.setFirstName(employeeDetails.getFirstName());
         employee.setTitle(employeeDetails.getTitle());
+        employee.setTemp(employeeDetails.getTemp());
+
+        if(multipartFile != null){
+            String uploadDir = "/user-photos/" + employeeDetails.getId();
+
+            //FileUploadUtil.saveFile(uploadDir, fileName, multipartFile);
+            Path path = Paths.get(uploadDir);
+            System.out.println("path = " + String.valueOf(path));
+
+            try {
+                Path destinationFile =
+                        path.resolve(
+                                        Paths.get(multipartFile.getOriginalFilename()))
+                                .normalize().toAbsolutePath();
+
+                System.out.println("destinationFile = " + destinationFile);
+
+                System.out.println(destinationFile.getParent());
+                System.out.println(destinationFile);
+
+                if (!destinationFile.getParent().equals(path.toAbsolutePath())) {
+                    // This is a security check
+                    throw new StorageException(
+                            "Cannot store file outside current directory.");
+                }
+
+                if(!(new File(String.valueOf(destinationFile.getParent())).exists()))
+                    new File(String.valueOf(destinationFile.getParent() )).mkdir();
+
+                try (InputStream inputStream = multipartFile.getInputStream()) {
+                    Files.copy(inputStream, destinationFile,
+                            StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                System.out.println(e.toString());
+                throw new StorageException("Failed to store file.", e);
+            }
+        }
+
         final Employee updatedEmployee = employeeRepository.save(employee);
         return ResponseEntity.ok(updatedEmployee);
     }
