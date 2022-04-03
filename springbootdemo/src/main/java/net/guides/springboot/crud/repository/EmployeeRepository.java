@@ -6,6 +6,6 @@ import org.springframework.stereotype.Repository;
 import net.guides.springboot.crud.model.Employee;
 
 @Repository
-public interface EmployeeRepository extends MongoRepository<Employee, Long>{
+public interface EmployeeRepository extends MongoRepository<Employee, String>{
 
 }

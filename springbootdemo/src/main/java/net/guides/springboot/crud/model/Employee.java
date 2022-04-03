@@ -8,6 +8,8 @@ import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
+
 @Document(collection = "Employee")
 public class Employee {
 
@@ -15,7 +17,7 @@ public class Employee {
     public static final String SEQUENCE_NAME = "users_sequence";
 
     @Id
-    private long id;
+    private String id;
 
     @NotBlank
     @Size(max = 100)
@@ -30,6 +32,16 @@ public class Employee {
     @Indexed(unique = true)
     private String emailId;
 
+    public Date getDateUpdated() {
+        return DateUpdated;
+    }
+
+    public void setDateUpdated(Date dateUpdated) {
+        DateUpdated = dateUpdated;
+    }
+
+    public Date DateUpdated;
+
     public Employee() {
 
     }
@@ -42,10 +54,10 @@ public class Employee {
         this.temp = temp;
     }
 
-    public long getId() {
+    public String getId() {
         return id;
     }
-    public void setId(long id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -79,6 +91,7 @@ public class Employee {
         return temp;
     }
     public void setTemp(String temp) {this.temp = temp;}
+
 
     @Override
     public String toString() {

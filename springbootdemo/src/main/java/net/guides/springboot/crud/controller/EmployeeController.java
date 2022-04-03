@@ -7,16 +7,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 //added for image
 import java.io.File;
-import java.util.Random;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 
+import net.guides.springboot.crud.model.EmployeeTempHistory;
+import net.guides.springboot.crud.repository.EmployeeTempHistoryRepository;
 import net.guides.springboot.crud.storage.StorageException;
 import net.guides.springboot.crud.storage.StorageFileNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,9 @@ public class EmployeeController {
     private EmployeeRepository employeeRepository;
 
     @Autowired
+    private EmployeeTempHistoryRepository employeeTempHistoryRepository;
+
+    @Autowired
     private SequenceGeneratorService sequenceGeneratorService;
 
     @GetMapping("/login")
@@ -62,56 +66,33 @@ public class EmployeeController {
     }
 
     @GetMapping("/employees/{id}")
-    public ResponseEntity < Employee > getEmployeeById(@PathVariable(value = "id") Long employeeId)
+    public ResponseEntity < Employee > getEmployeeById(@PathVariable(value = "id") String employeeId)
             throws ResourceNotFoundException {
         Employee employee = employeeRepository.findById(employeeId).orElseThrow(() -> new ResourceNotFoundException("Employee not found for this id :: " + employeeId));
         return ResponseEntity.ok().body(employee);
     }
-    @CrossOrigin(origins = "http://localhost:3000", maxAge = 3600)
-    @PostMapping("/employees")
-    public Employee createEmployee(@Valid @RequestBody Employee employee) {
-        System.out.println((employee));
-        employee.setId(sequenceGeneratorService.generateSequence(Employee.SEQUENCE_NAME));
-        return employeeRepository.save(employee);
-    }
+
     @PostMapping("/employees/save")
     public Path saveUser(@ModelAttribute Employee employee, @ModelAttribute MultipartFile multipartFile) throws IOException {
-        System.out.println("Filename = " + multipartFile.getOriginalFilename());
+        TimeZone.setDefault(TimeZone.getTimeZone("GMT+2"));
 
-        System.out.println("yeeeeeeeeeeeeee");
-        //String fileName = StringUtils.cleanPath(multipartFile.getOriginalFilename());
-        //employee.setTitle(fileName);
-
-        System.out.println("employee = " + employee);
-
-        Random rnd = new Random();
-        long rn = rnd.nextLong(456789098  );
-        System.out.println("rnd = " + rn);
-
-        employee.setId(rn);
-        System.out.println("employee = " + employee.getId());
-
+        Date date = new Date();
+        employee.setDateUpdated(date);
 
         Employee savedUser = employeeRepository.save(employee);
 
-        System.out.println("savedUser = " + savedUser);
+        EmployeeTempHistory history = new EmployeeTempHistory(savedUser, date, Double.parseDouble(savedUser.getTemp()));
+        employeeTempHistoryRepository.save(history);
 
         String uploadDir = "/user-photos/" + savedUser.getId();
 
-        //FileUploadUtil.saveFile(uploadDir, fileName, multipartFile);
         Path path = Paths.get(uploadDir);
-        System.out.println("path = " + String.valueOf(path));
 
         try {
             Path destinationFile =
             path.resolve(
                             Paths.get(multipartFile.getOriginalFilename()))
                     .normalize().toAbsolutePath();
-
-            System.out.println("destinationFile = " + destinationFile);
-
-            System.out.println(destinationFile.getParent());
-            System.out.println(destinationFile);
 
             if (!destinationFile.getParent().equals(path.toAbsolutePath())) {
                 // This is a security check
@@ -129,7 +110,6 @@ public class EmployeeController {
                 return destinationFile;
             }
         } catch (IOException e) {
-            System.out.println(e.toString());
             throw new StorageException("Failed to store file.", e);
         }
     }
@@ -137,15 +117,11 @@ public class EmployeeController {
     @RequestMapping(value = "/user-photos/**", method = RequestMethod.GET)
     public ResponseEntity<Resource> downloadFile(HttpServletRequest request) {
         String url = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
-        url = url.replaceFirst("/api/v1/user-photos/", "");
-
-        System.out.println("Url = " + url);
+        url = url.replaceFirst("/api/v1/user-photos/", "").replaceAll("%20", " ");
 
         String path = "C:/user-photos/" + url;
 
         Resource file = loadAsResource(path);
-
-        System.out.println("path = " + path);
 
         return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION,
                 "attachment; filename=\"" + file.getFilename() + "\"").body(file);
@@ -168,9 +144,18 @@ public class EmployeeController {
     }
 
     @PutMapping("/employees/{id}")
-    public ResponseEntity < Employee > updateEmployee(@PathVariable(value = "id") Long employeeId,
-                                                      @Valid @ModelAttribute Employee employeeDetails, @ModelAttribute MultipartFile multipartFile) throws ResourceNotFoundException {
+    public ResponseEntity < Employee > updateEmployee(@PathVariable(value = "id") String employeeId,
+                                                      @Valid @ModelAttribute Employee employeeDetails, @ModelAttribute MultipartFile multipartFile) throws ResourceNotFoundException, ParseException {
         Employee employee = employeeRepository.findById(employeeId).orElseThrow(() -> new ResourceNotFoundException("Employee not found for this id :: " + employeeId));
+
+        TimeZone.setDefault(TimeZone.getTimeZone("GMT+2"));
+        Date date = new Date();
+
+        // update temp history
+        if(Double.parseDouble(employee.getTemp()) != Double.parseDouble(employeeDetails.getTemp())) {
+            EmployeeTempHistory history = new EmployeeTempHistory(employee, date, Double.parseDouble(employeeDetails.getTemp()));
+            employeeTempHistoryRepository.save(history);
+        }
 
         employee.setEmailId(employeeDetails.getEmailId());
         employee.setLastName(employeeDetails.getLastName());
@@ -178,23 +163,19 @@ public class EmployeeController {
         employee.setTitle(employeeDetails.getTitle());
         employee.setTemp(employeeDetails.getTemp());
 
+        employee.setDateUpdated(date);
+
         if(multipartFile != null){
             String uploadDir = "/user-photos/" + employeeDetails.getId();
 
             //FileUploadUtil.saveFile(uploadDir, fileName, multipartFile);
             Path path = Paths.get(uploadDir);
-            System.out.println("path = " + String.valueOf(path));
 
             try {
                 Path destinationFile =
                         path.resolve(
                                         Paths.get(multipartFile.getOriginalFilename()))
                                 .normalize().toAbsolutePath();
-
-                System.out.println("destinationFile = " + destinationFile);
-
-                System.out.println(destinationFile.getParent());
-                System.out.println(destinationFile);
 
                 if (!destinationFile.getParent().equals(path.toAbsolutePath())) {
                     // This is a security check
@@ -220,7 +201,7 @@ public class EmployeeController {
     }
 
     @DeleteMapping("/employees/{id}")
-    public Map < String, Boolean > deleteEmployee(@PathVariable(value = "id") Long employeeId)
+    public Map < String, Boolean > deleteEmployee(@PathVariable(value = "id") String employeeId)
             throws ResourceNotFoundException {
         Employee employee = employeeRepository.findById(employeeId).orElseThrow(() -> new ResourceNotFoundException("Employee not found for this id :: " + employeeId));
 
@@ -229,28 +210,17 @@ public class EmployeeController {
         response.put("deleted", Boolean.TRUE);
         return response;
     }
-//    //image add
-//    private static String imageDirectory = System.getProperty("user.dir") + "/images/";
-//    //@GetMapping(value = "/image", produces = {MediaType.IMAGE_PNG_VALUE, "application/json"})
-//    @GetMapping("/image")
-//    public String test(){return "Success";}
-//    public ResponseEntity<?> uploadImage(@RequestParam("imageFile")MultipartFile file,
-//                                         @RequestParam("imageName") String name) {
-//        makeDirectoryIfNotExist(imageDirectory);
-//        Path fileNamePath = Paths.get(imageDirectory,
-//                name.concat(".").concat(FilenameUtils.getExtension(file.getOriginalFilename())));
-//        try {
-//            Files.write(fileNamePath, file.getBytes());
-//            return new ResponseEntity<>(name, HttpStatus.CREATED);
-//        } catch (IOException ex) {
-//            return new ResponseEntity<>("Image is not uploaded", HttpStatus.BAD_REQUEST);
-//        }
-//    }
-//
-//    private void makeDirectoryIfNotExist(String imageDirectory) {
-//        File directory = new File(imageDirectory);
-//        if (!directory.exists()) {
-//            directory.mkdir();
-//        }
-//    }
+
+    @GetMapping("/employees/history/{id}")
+    public List<EmployeeTempHistory> getEmployeeHistory(@PathVariable(value = "id") String employeeId)
+            throws ResourceNotFoundException {
+        List<EmployeeTempHistory> list = employeeTempHistoryRepository.findAll();
+
+        list = list.stream().filter(x ->  x.getEmployee().getId().equals(employeeId)).toList();
+
+        if(list.size() > 7)
+            return list.subList(list.size() - 8, list.size() - 1);
+
+        return list;
+    }
 }
